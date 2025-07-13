@@ -1,0 +1,160 @@
+import requests
+from bs4 import BeautifulSoup
+from datetime import datetime
+from selenium import webdriver
+from selenium.webdriver.chrome.options import Options
+from selenium.webdriver.chrome.service import Service
+from webdriver_manager.chrome import ChromeDriverManager
+import time
+import os
+
+# 조선비즈 크롤링 
+def crawl_it_chosun_fintech():
+    url = "https://it.chosun.com/news/articleList.html?sc_sub_section_code=S2N28&view_type=sm"
+    headers = {
+        "User-Agent": "Mozilla/5.0"
+    }
+
+    res = requests.get(url, headers=headers)
+    if res.status_code != 200:
+        print("❌ 요청 실패:", res.status_code)
+        return []
+
+    soup = BeautifulSoup(res.content.decode('utf-8', errors='replace'), 'html.parser')
+    news_items = []
+
+    # ✅ 기사 목록 li.item > h2.titles > a
+    article_tags = soup.select("li.item h2.titles a")
+
+    for tag in article_tags[:10]:  # 상위 10개만
+        title = tag.get_text(strip=True)
+        link = tag.get("href", "")
+        if not link.startswith("http"):
+            link = "https://it.chosun.com" + link
+        news_items.append({
+            "출처": "IT조선",
+            "제목": title,
+            "링크": link
+        })
+
+    return news_items
+
+# 서울경제 크롤링
+def crawl_sedaily_economy():
+    url = "https://www.sedaily.com/v/NewsMain/GC"
+    headers = {
+        "User-Agent": "Mozilla/5.0"
+    }
+
+    response = requests.get(url, headers=headers)
+    if response.status_code != 200:
+        print("❌ 요청 실패:", response.status_code)
+        return []
+
+    # ✅ 한글 깨짐 방지용 디코딩
+    html = response.content.decode('utf-8', errors='replace')
+    soup = BeautifulSoup(html, "html.parser")
+    
+    news_items = []
+
+    main_articles = soup.select("div.sub_news > div")
+    sub_articles = soup.select("ul.sub_news_list > li")
+
+    def parse_article(tag):
+        title_tag = tag.select_one("div.article_tit a")
+        if not title_tag:
+            return None
+        title = title_tag.get_text(strip=True)
+        link = title_tag['href']
+        if not link.startswith("http"):
+            link = "https://www.sedaily.com" + link
+        return {"출처": "서울경제", "제목": title, "링크": link}
+
+    for tag in main_articles + sub_articles:
+        item = parse_article(tag)
+        if item:
+            news_items.append(item)
+
+    return news_items[:10]
+
+
+# kisa 크롤링
+def crawl_kisa_selenium():
+    options = Options()
+    options.add_argument("--headless")
+    options.add_argument("--disable-gpu")
+    options.add_argument("--no-sandbox")
+    options.add_argument("--window-size=1920x1080")
+
+    service = Service(r"내경로\chromedriver.exe")
+    driver = webdriver.Chrome(service=service, options=options)
+    
+    try:
+        driver.get("https://www.kisa.or.kr/20207")
+        time.sleep(3)
+
+        soup = BeautifulSoup(driver.page_source, "html.parser")
+        rows = soup.select("table.tbl_board.notice tbody tr")
+
+        data = []
+        for row in rows[:10]:  # 최근 10개만
+            link_elem = row.select_one("td.sbj a")
+            if link_elem:
+                title = link_elem.text.strip()
+                href = link_elem.get("href", "")
+                link = "https://www.kisa.or.kr" + href
+                data.append({
+                    "출처": "KISA",
+                    "제목": title,
+                    "링크": link
+                })
+        return data
+    finally:
+        driver.quit()
+
+# 마크다운 문서 생성 
+def generate_markdown(data, output_dir="output"):
+    today_str = datetime.today().strftime("%Y-%m-%d")
+    today_filename = datetime.today().strftime("%Y%m%d")
+    blog_title = f"[뉴스 요약] {today_str} – 금융·보안 동향 정리"
+
+    # 출처별로 그룹핑
+    grouped = {}
+    for item in data:
+        src = item.get("출처", "기타")
+        grouped.setdefault(src, []).append(item)
+
+    md_lines = [f"# {today_str} 뉴스 요약", "", "아래는 각 기관에서 발표한 주요 뉴스입니다.", ""]
+
+    for org, items in grouped.items():
+        md_lines.append(f"## {org}")
+        for item in items:
+            md_lines.append(f"- [{item['제목']}]({item['링크']})")
+        md_lines.append("")
+
+    markdown_output = "\n".join(md_lines)
+
+    # 저장 경로: output/2025-07-13/
+    folder_path = os.path.join(output_dir, today_str)
+    os.makedirs(folder_path, exist_ok=True)
+
+    filename = os.path.join(folder_path, f"뉴스요약_{today_filename}.md")
+
+    with open(filename, "w", encoding="utf-8") as f:
+        f.write(f"# {blog_title}\n\n")
+        f.write(markdown_output)
+
+    print(f"\n✅ 마크다운 파일 저장 완료: {filename}")
+
+if __name__ == "__main__":
+    #data = crawl_kisa_selenium()
+    #generate_markdown(data)
+    kisa_data = crawl_kisa_selenium()
+    sedaily_data = crawl_sedaily_economy()
+    itchosun_data = crawl_it_chosun_fintech()
+
+    # 모든 데이터를 하나로 합치기
+    combined = kisa_data + sedaily_data + itchosun_data
+
+    # 마크다운 생성
+    generate_markdown(combined)
