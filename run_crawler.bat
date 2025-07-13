@@ -1,23 +1,27 @@
 @echo off
 chcp 65001 > nul
 
-REM ▶ 프로젝트 경로 설정
-set "BASE_DIR=D:\workspace\python-crawling-workspace"
+REM ▶ 현재 bat 파일 경로 기준으로 BASE_DIR 설정
+set "BASE_DIR=%~dp0"
+set "BASE_DIR=%BASE_DIR:~0,-1%"
 set "VENV_DIR=%BASE_DIR%\.venv"
 set "PYTHON_PATH=%VENV_DIR%\Scripts\python.exe"
 set "MAIN_SCRIPT=%BASE_DIR%\main.py"
 set "REQUIREMENTS_FILE=%BASE_DIR%\requirements.txt"
 
-REM ▶ 로그 폴더 준비
-if not exist "%BASE_DIR%\backup\log\error" mkdir "%BASE_DIR%\backup\log\error"
-if not exist "%BASE_DIR%\backup\log\full" mkdir "%BASE_DIR%\backup\log\full"
-
-REM ▶ 날짜 시각 생성
+REM ▶ 날짜 시각 문자열 생성
 for /f %%i in ('powershell -NoProfile -Command "Get-Date -Format yyyyMMdd_HHmmss"') do set "NOW=%%i"
+for /f %%d in ('powershell -NoProfile -Command "Get-Date -Format yyyy-MM-dd"') do set "TODAY=%%d"
 
-set "TEMP_LOG=log_temp.txt"
-set "FULL_LOG=%BASE_DIR%\backup\log\full\log_%NOW%.txt"
-set "ERROR_LOG=%BASE_DIR%\backup\log\error\log_%NOW%.txt"
+REM ▶ 로그 경로 구성 (날짜별)
+set "FULL_LOG_DIR=%BASE_DIR%\backup\log\full\%TODAY%"
+set "ERROR_LOG_DIR=%BASE_DIR%\backup\log\error\%TODAY%"
+set "FULL_LOG=%FULL_LOG_DIR%\log_%NOW%.txt"
+set "ERROR_LOG=%ERROR_LOG_DIR%\log_%NOW%.txt"
+
+REM ▶ 로그 폴더 생성
+if not exist "%FULL_LOG_DIR%" mkdir "%FULL_LOG_DIR%"
+if not exist "%ERROR_LOG_DIR%" mkdir "%ERROR_LOG_DIR%"
 
 REM ▶ 가상환경 없으면 생성
 if not exist "%PYTHON_PATH%" (
@@ -26,17 +30,15 @@ if not exist "%PYTHON_PATH%" (
     python -m venv .venv
 )
 
-REM ▶ 환경변수로 stdout 인코딩 강제 설정
+REM ▶ 인코딩 환경 설정
 set PYTHONIOENCODING=utf-8
 
-REM ▶ python 실행 파일 존재 확인
+REM ▶ 경로 유효성 검사
 if not exist "%PYTHON_PATH%" (
     echo [ERROR] Python 실행 파일을 찾을 수 없습니다: %PYTHON_PATH%
     pause
     exit /b 1
 )
-
-REM ▶ main.py 존재 확인
 if not exist "%MAIN_SCRIPT%" (
     echo [ERROR] main.py 파일을 찾을 수 없습니다: %MAIN_SCRIPT%
     pause
@@ -48,37 +50,45 @@ echo [INFO] 필요한 패키지 설치 중...
 "%PYTHON_PATH%" -m pip install --upgrade pip > nul
 "%PYTHON_PATH%" -m pip install -r "%REQUIREMENTS_FILE%" > nul
 
-REM ▶ main.py 실행
+REM ▶ main.py 실행 및 로그 저장
 echo [INFO] main.py 실행 중...
-"%PYTHON_PATH%" "%MAIN_SCRIPT%" > "%TEMP_LOG%" 2>&1
-
-REM ▶ 전체 로그 저장
-copy /Y "%TEMP_LOG%" "%FULL_LOG%" > nul
+"%PYTHON_PATH%" "%MAIN_SCRIPT%" > log_temp.txt 2>&1
+copy /Y log_temp.txt "%FULL_LOG%" > nul
 echo [INFO] 전체 로그 저장됨: %FULL_LOG%
 
-REM ▶ 에러 포함 시 error 로그로 복사
-findstr /i "traceback error exception" "%TEMP_LOG%" > nul
+REM ▶ 에러 발생 여부 확인 → 에러 로그로 백업
+findstr /i "traceback error exception" log_temp.txt > nul
 if %errorlevel% equ 0 (
-    copy /Y "%TEMP_LOG%" "%ERROR_LOG%" > nul
+    copy /Y log_temp.txt "%ERROR_LOG%" > nul
     echo [WARNING] 에러 로그 저장됨: %ERROR_LOG%
 ) else (
     echo [INFO] 에러 없음
 )
 
 REM ▶ 임시 로그 삭제
-del "%TEMP_LOG%"
+del log_temp.txt
 
-REM ▶ output 폴더 열기 및 경로 표시
-if exist "%BASE_DIR%\output" (
-    echo [INFO] 결과 폴더 열기: %BASE_DIR%\output
-    explorer "%BASE_DIR%\output"
+REM ▶ 결과 마크다운 폴더 열기: markdown/output/YYYY-MM-DD
+set "RESULT_PATH=%BASE_DIR%\markdown\output\%TODAY%"
+if exist "%RESULT_PATH%" (
+    echo [INFO] 결과 폴더 열기: %RESULT_PATH%
+    explorer "%RESULT_PATH%"
 ) else (
-    echo [INFO] output 폴더가 없습니다: %BASE_DIR%\output
+    echo [INFO] 결과 폴더가 없습니다: %RESULT_PATH%
 )
 
-REM ▶ 오래된 에러 로그 삭제
-powershell -NoProfile -Command "Get-ChildItem -Path '%BASE_DIR%\backup\log\error' -File | Where-Object { $_.LastWriteTime -lt (Get-Date).AddDays(-180) } | Remove-Item -Force"
+REM ▶ 180일 지난 로그 폴더 삭제
+echo [INFO] 오래된 로그 폴더 정리 중...
+powershell -NoProfile -Command ^
+"Get-ChildItem -Path '%BASE_DIR%\backup\log\full' -Directory | ^
+ Where-Object { $_.LastWriteTime -lt (Get-Date).AddDays(-180) } | Remove-Item -Recurse -Force"
+
+powershell -NoProfile -Command ^
+"Get-ChildItem -Path '%BASE_DIR%\backup\log\error' -Directory | ^
+ Where-Object { $_.LastWriteTime -lt (Get-Date).AddDays(-180) } | Remove-Item -Recurse -Force"
 
 echo.
 echo [INFO] 작업 완료. 창을 닫으시거나 아무 키나 누르세요.
 pause
+echo [INFO] 크롤러가 종료되었습니다.
+exit /b 0
