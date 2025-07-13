@@ -1,41 +1,52 @@
-# markdown/writer.py
-from datetime import datetime
 import os
+from datetime import datetime
+from keywords import extract_common_keywords
+from typing import List, Tuple, Dict
 
-def generate_markdown(data, output_dir="output"):
-    from keywords import extract_common_keywords
+def generate_markdown(data: List[Dict[str, str]]) -> None:
+    today = datetime.today().strftime("%Y-%m-%d")
+    filename_time = datetime.today().strftime("%Y%m%d_%H%M")
 
-    now = datetime.now()
-    today_str = now.strftime("%Y-%m-%d")
-    filename_time = now.strftime("%Y%m%d_%H%M")
-    blog_title = f"[뉴스 요약] {today_str} – 금융·보안 동향 정리"
+    blog_title = f"[뉴스 요약] {today} – 금융·보안 동향 정리"
 
+    # 출처별로 그룹핑
     grouped = {}
     for item in data:
         src = item.get("출처", "기타")
         grouped.setdefault(src, []).append(item)
 
-    md_lines = [f"# {today_str} 뉴스 요약", "", "아래는 각 기관에서 발표한 주요 뉴스입니다.", ""]
+    md_lines = [
+        f"# {today} 뉴스 요약",
+        "",
+        "아래는 각 기관에서 발표한 주요 뉴스입니다.",
+        ""
+    ]
+
+    # 공통 키워드 추출 (Tuple[str, int] 형식)
+    keywords: List[Tuple[str, int]] = extract_common_keywords([item["제목"] for item in data])
+    if keywords:
+        keyword_str = ", ".join([kw[0] for kw in keywords])
+        md_lines.insert(4, "##주요 키워드: " + keyword_str)
+        md_lines.insert(5, "")
 
     for org, items in grouped.items():
         md_lines.append(f"## {org}")
         for item in items:
             md_lines.append(f"- [{item['제목']}]({item['링크']})")
-        md_lines.append("")
-
-    # 주요 키워드 추가
-    titles = [item["제목"] for item in data]
-    keywords = extract_common_keywords(titles)
-    if keywords:
-        md_lines.append("## 🔍 주요 키워드")
-        md_lines.append("뉴스 제목에서 추출된 핵심 키워드입니다:")
-        for word, count in keywords:
-            md_lines.append(f"- **{word}** ({count}회)")
-        md_lines.append("")
+        md_lines.append("")  # 기관별 구분용 공백
 
     markdown_output = "\n".join(md_lines)
 
-    folder_path = os.path.join(output_dir, today_str)
+    print("\n" + "=" * 80)
+    print("티스토리에 올린 블로그 글")
+    print("=" * 80)
+    print(f"\n제목: {blog_title}\n")
+    print(markdown_output)
+
+    # 절대경로 출력 디렉토리 지정
+    base_dir = os.path.abspath(os.path.dirname(__file__))
+    output_dir = os.path.join(base_dir, "output")
+    folder_path = os.path.join(output_dir, today)
     os.makedirs(folder_path, exist_ok=True)
 
     filename = os.path.join(folder_path, f"뉴스요약_{filename_time}.md")
@@ -43,9 +54,4 @@ def generate_markdown(data, output_dir="output"):
         f.write(f"# {blog_title}\n\n")
         f.write(markdown_output)
 
-    print("\n" + "=" * 80)
-    print("📌 티스토리에 올릴 블로그 글")
-    print("=" * 80)
-    print(f"\n제목: {blog_title}\n")
-    print(markdown_output)
-    print(f"\n✅ 마크다운 파일 저장 완료: {filename}")
+    print(f"\n마크다운 파일 저장 완료: {filename}")

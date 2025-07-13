@@ -5,6 +5,8 @@ from selenium import webdriver
 from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.chrome.service import Service
 
+
+# 셀레니움 방식으로 크롤링 : js로 로딩된 페이지에서 데이터 추출하기 위해
 def crawl_kisa_selenium():
     options = Options()
     options.add_argument("--headless")
@@ -12,7 +14,7 @@ def crawl_kisa_selenium():
     options.add_argument("--no-sandbox")
     options.add_argument("--window-size=1920x1080")
 
-    service = Service(r"내경로\\chromedriver.exe")
+    service = Service(r"C:\\Users\\NICCOMPANY_YSY\\Downloads\\chromedriver-win64\\chromedriver-win64\\chromedriver.exe")
     driver = webdriver.Chrome(service=service, options=options)
 
     try:
@@ -22,7 +24,7 @@ def crawl_kisa_selenium():
         rows = soup.select("table.tbl_board.notice tbody tr")
 
         data = []
-        for row in rows[:5]:
+        for row in rows[:10]:
             link_elem = row.select_one("td.sbj a")
             if link_elem:
                 title = link_elem.text.strip()

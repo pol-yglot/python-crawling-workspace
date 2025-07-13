@@ -2,16 +2,19 @@
 from crawler import crawl_kisa_selenium, crawl_sedaily_economy, crawl_it_chosun_fintech
 from markdown import generate_markdown
 from keywords import extract_common_keywords
+import sys
+
+sys.stdout.reconfigure(encoding='utf-8')
 
 def safe_crawl(func, name):
     try:
         return func()
     except Exception as e:
-        print(f"❌ [{name}] 크롤링 실패: {e}")
+        print(f"[{name}] 크롤링 실패: {e}")
         return []
 
 def main():
-    print("🔍 뉴스 크롤링 시작...")
+    print("뉴스 크롤링 시작...")
 
     kisa = safe_crawl(crawl_kisa_selenium, "KISA")
     sedaily = safe_crawl(crawl_sedaily_economy, "서울경제")
@@ -20,7 +23,7 @@ def main():
     all_data = kisa + sedaily + itchosun
 
     if not all_data:
-        print("❌ 크롤링된 뉴스가 없습니다. 종료합니다.")
+        print("크롤링된 뉴스가 없습니다. 종료합니다.")
         return
 
     generate_markdown(all_data)
@@ -28,7 +31,7 @@ def main():
     # titles = [item["제목"] for item in all_data]
     # keywords = extract_common_keywords(titles)
 
-    # print("\n📌 주요 키워드:")
+    # print("\n주요 키워드:")
     # for word, count in keywords:
     #     print(f"- {word}: {count}")
 

@@ -2,13 +2,14 @@
 import requests
 from bs4 import BeautifulSoup
 
+# request+BeautifulSoup 방식으로 크롤링 : 정적 페이지에서 데이터 추출하기 위해
 def crawl_it_chosun_fintech():
     url = "https://it.chosun.com/news/articleList.html?sc_sub_section_code=S2N28&view_type=sm"
     headers = {"User-Agent": "Mozilla/5.0"}
 
     res = requests.get(url, headers=headers)
     if res.status_code != 200:
-        print("❌ 요청 실패:", res.status_code)
+        print("요청 실패:", res.status_code)
         return []
 
     soup = BeautifulSoup(res.content.decode('utf-8', errors='replace'), 'html.parser')

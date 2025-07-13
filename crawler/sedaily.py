@@ -2,13 +2,14 @@
 import requests
 from bs4 import BeautifulSoup
 
+# request+BeautifulSoup 방식으로 크롤링 : 정적 페이지에서 데이터 추출하기 위해
 def crawl_sedaily_economy():
     url = "https://www.sedaily.com/v/NewsMain/GC"
     headers = {"User-Agent": "Mozilla/5.0"}
     response = requests.get(url, headers=headers)
 
     if response.status_code != 200:
-        print("❌ 요청 실패:", response.status_code)
+        print("요청 실패:", response.status_code)
         return []
 
     soup = BeautifulSoup(response.content.decode('utf-8', errors='replace'), 'html.parser')
