@@ -22,8 +22,14 @@ def generate_markdown(data: List[Dict[str, str]]) -> None:
         ""
     ]
 
-    # 공통 키워드 추출 (Tuple[str, int] 형식)
-    keywords: List[Tuple[str, int]] = extract_common_keywords([item["제목"] for item in data])
+    # 공통 키워드 추출 (Tuple[str, int] 형식) - 비어있으면 스킵
+    keywords: List[Tuple[str, int]] = []
+    try:
+        if data and len(data) > 0:
+            keywords = extract_common_keywords([item["제목"] for item in data])
+    except Exception as e:
+        print(f"[키워드 추출] 경고: {e} - 키워드 추출을 건너뜁니다.")
+    
     if keywords:
         keyword_str = ", ".join([kw[0] for kw in keywords])
         md_lines.insert(4, "##주요 키워드: " + keyword_str)
